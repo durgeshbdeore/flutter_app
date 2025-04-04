@@ -33,15 +33,19 @@ class BleController extends GetxController {
   }
 
   /// Initialize Bluetooth and auto-connect if needed
-  Future<void> initializeBluetooth() async {
-    FlutterBluePlus.setLogLevel(LogLevel.verbose);
+  void initializeBluetooth() {
+  FlutterBluePlus.setLogLevel(LogLevel.verbose);
 
-    FlutterBluePlus.state.listen((state) {
-      if (state == BluetoothState.on) {
-        startAutoReconnect(); // ✅ Start auto-reconnect when Bluetooth is on
-      }
-    });
-  }
+  FlutterBluePlus.state.listen((state) {
+    if (state == BluetoothState.on) {
+      print("✅ Bluetooth is ON");
+      startAutoReconnect();
+    } else {
+      print("❌ Bluetooth is OFF");
+    }
+  });
+}
+
 
   /// Load last connected device from storage and attempt reconnection
   Future<void> _loadLastConnectedDevice() async {
@@ -85,28 +89,42 @@ class BleController extends GetxController {
   }
 
   /// Scan for BLE devices
-  Future<void> scanDevices() async {
-    if (isScanning.value) return;
+  /// Scan for BLE devices
+Future<void> scanDevices() async {
+  if (isScanning.value) return; // Prevent multiple scans
 
-    scanResults.clear();
-    isScanning.value = true;
+  scanResults.clear();
+  isScanning.value = true;
 
-    try {
-      await FlutterBluePlus.stopScan();
+  try {
+    await FlutterBluePlus.stopScan(); // Stop any existing scan
+    await Future.delayed(const Duration(milliseconds: 500)); // Small delay before starting a new scan
 
-      // ✅ Ensure scan results update correctly
-      FlutterBluePlus.onScanResults.listen((results) {
+    FlutterBluePlus.startScan(
+      timeout: const Duration(seconds: 5),
+      androidUsesFineLocation: true, // ✅ Important for Android 10+
+    );
+
+    // ✅ Listen for scan results
+    StreamSubscription<List<ScanResult>>? scanSubscription;
+    scanSubscription = FlutterBluePlus.scanResults.listen((results) {
+      if (results.isNotEmpty) {
         scanResults.assignAll(results);
-      });
+        print("🔍 Found devices: ${results.map((e) => e.device.name).toList()}");
+      }
+    });
 
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-    } catch (e) {
-      print("Scan Error: $e");
-    } finally {
-      await Future.delayed(const Duration(seconds: 5));
-      isScanning.value = false;
-    }
+    await Future.delayed(const Duration(seconds: 5));
+
+    // ✅ Stop scanning after timeout
+    await FlutterBluePlus.stopScan();
+    await scanSubscription.cancel();
+  } catch (e) {
+    print("❌ Scan Error: $e");
+  } finally {
+    isScanning.value = false;
   }
+}
 
   /// Auto-reconnect to device when it is back in range
   void startAutoReconnect() {

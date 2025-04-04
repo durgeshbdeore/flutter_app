@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'ble_controller.dart';
-import 'device_data_page.dart';  // Ensure this import is correct.
+import 'device_data_page.dart';  // Ensure this file exists
+import 'background_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeService(); // Start background service
   runApp(const MyApp());
 }
 
@@ -14,9 +16,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'BLE Heart Rate Monitor',
-      theme: ThemeData(primarySwatch: Colors.deepPurple),
-      home: const MyHomePage(),
+      debugShowCheckedModeBanner: false,
+      home: const MyHomePage(), // Start with MyHomePage
     );
   }
 }
@@ -36,15 +37,15 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     controller.initializeBluetooth();
 
-    // Attempt to auto-reconnect after a short delay
+    // Attempt auto-reconnect after a delay
     Future.delayed(const Duration(seconds: 1), () {
       controller.startAutoReconnect();
     });
 
-    // Navigate to DeviceDataPage if connected
+    // Navigate to DeviceDataPage when connected
     ever(controller.isConnected, (connected) {
       if (connected == true) {
-        Get.off(() => const DeviceDataPage()); // Using the correct class here
+        Get.off(() => const DeviceDataPage());
       }
     });
   }
@@ -68,46 +69,56 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 10),
+
+            // Scanned Device List
             Expanded(
-              child: ListView.builder(
-                itemCount: controller.scanResults.length,
-                itemBuilder: (context, index) {
-                  final result = controller.scanResults[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(result.device.name.isNotEmpty
-                          ? result.device.name
-                          : "Unnamed Device (${result.device.id.id})"),
-                      subtitle: Text(result.device.id.id),
-                      trailing: ElevatedButton(
-                        onPressed: () async {
-                          await controller.connectToDevice(result.device);
-                        },
-                        child: const Text("CONNECT"),
-                      ),
+              child: controller.scanResults.isNotEmpty
+                  ? ListView.builder(
+                      itemCount: controller.scanResults.length,
+                      itemBuilder: (context, index) {
+                        final result = controller.scanResults[index];
+                        return Card(
+                          child: ListTile(
+                            title: Text(result.device.name.isNotEmpty
+                                ? result.device.name
+                                : "Unnamed Device (${result.device.id.id})"),
+                            subtitle: Text(result.device.id.id),
+                            trailing: ElevatedButton(
+                              onPressed: () async {
+                                await controller.connectToDevice(result.device);
+                              },
+                              child: const Text("CONNECT"),
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : const Center(
+                      child: Text("No devices found.\nPress SCAN to start scanning.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 16, color: Colors.grey)),
                     ),
-                  );
-                },
-              ),
             ),
+
+            // Buttons
+            const SizedBox(height: 10),
             if (controller.isConnected.value)
               ElevatedButton(
-                onPressed: () => controller.disconnectDevice(),
+                onPressed: controller.disconnectDevice,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text("DISCONNECT", style: TextStyle(color: Colors.white)),
               ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () => controller.scanDevices(),
+              onPressed: controller.scanDevices,
               child: const Text("SCAN"),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () async {
-                await controller.forgetDevice();
-              },
+              onPressed: controller.forgetDevice,
               child: const Text("FORGET DEVICE"),
             ),
+            const SizedBox(height: 20),
           ],
         );
       }),

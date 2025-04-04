@@ -1,27 +1,33 @@
 package com.example.flutter_bluetooth;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
+
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 public class BLEForegroundService extends Service {
     private static final String TAG = "BLEForegroundService";
     private static final String CHANNEL_ID = "BLEServiceChannel";
+    private static final int RESTART_DELAY_MS = 5000;
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
@@ -35,13 +41,15 @@ public class BLEForegroundService extends Service {
         createNotificationChannel();
         startForeground(1, getNotification());
 
-        // Prevent device from killing the service
+        // Wake Lock to prevent service from stopping
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BLEForegroundService::WakeLock");
         wakeLock.acquire();
-        
+
         BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
+
+        registerRestartReceiver();
     }
 
     @Override
@@ -50,7 +58,7 @@ public class BLEForegroundService extends Service {
         if (deviceAddress != null) {
             connectToDevice(deviceAddress);
         }
-        return START_STICKY;
+        return START_STICKY; // Restart automatically if killed
     }
 
     private void connectToDevice(String address) {
@@ -78,7 +86,7 @@ public class BLEForegroundService extends Service {
                 Log.d(TAG, "Connected to GATT server.");
                 gatt.discoverServices();
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                Log.d(TAG, "Disconnected. Attempting to reconnect in 3 seconds...");
+                Log.d(TAG, "Disconnected. Reconnecting...");
                 handler.postDelayed(() -> reconnect(deviceAddress), 3000);
             }
         }
@@ -86,7 +94,7 @@ public class BLEForegroundService extends Service {
 
     private void reconnect(String address) {
         if (bluetoothGatt != null) {
-            bluetoothGatt.close(); // Close previous connection before reconnecting
+            bluetoothGatt.close();
         }
         BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
         if (device != null) {
@@ -120,9 +128,7 @@ public class BLEForegroundService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         Log.d(TAG, "App removed from recent tasks. Restarting service...");
-        Intent restartServiceIntent = new Intent(getApplicationContext(), BLEForegroundService.class);
-        restartServiceIntent.setPackage(getPackageName());
-        startService(restartServiceIntent);
+        scheduleServiceRestart();
     }
 
     @Override
@@ -133,6 +139,7 @@ public class BLEForegroundService extends Service {
         if (bluetoothGatt != null) {
             bluetoothGatt.close();
         }
+        unregisterReceiver(restartReceiver);
         super.onDestroy();
     }
 
@@ -141,4 +148,32 @@ public class BLEForegroundService extends Service {
     public IBinder onBind(Intent intent) {
         return null;
     }
+
+    private void scheduleServiceRestart() {
+        Intent restartServiceIntent = new Intent(getApplicationContext(), BLEForegroundService.class);
+        PendingIntent restartPendingIntent = PendingIntent.getService(
+                this, 1, restartServiceIntent, PendingIntent.FLAG_IMMUTABLE
+        );
+
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager != null) {
+            long restartTime = System.currentTimeMillis() + RESTART_DELAY_MS;
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, restartTime, restartPendingIntent);
+        }
+    }
+
+    private void registerRestartReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_BOOT_COMPLETED);
+        filter.addAction(Intent.ACTION_REBOOT);
+        registerReceiver(restartReceiver, filter);
+    }
+
+    private final BroadcastReceiver restartReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "Device rebooted, restarting BLE service...");
+            scheduleServiceRestart();
+        }
+    };
 }
