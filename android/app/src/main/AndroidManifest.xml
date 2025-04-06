@@ -14,7 +14,6 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE"/>
 
-
     <!-- Required for package visibility -->
     <queries>
         <intent>
@@ -49,9 +48,25 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
-        
-    </application>
 
-    
+        <!-- Register BLEForegroundService -->
+        <service
+            android:name=".BLEForegroundService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="connectedDevice|location|dataSync" />
+
+        <!-- Register BLEBootReceiver to restart service after boot -->
+        <receiver
+            android:name=".BLEBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.REBOOT"/>
+            </intent-filter>
+        </receiver>
+
+    </application>
 
 </manifest>
