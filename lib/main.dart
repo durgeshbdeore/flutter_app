@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'ble_controller.dart';
-import 'device_data_page.dart';  // Ensure this file exists
+import 'device_data_page.dart';
 import 'background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeService(); // Start background service
+  await initializeService(); // Start background BLE & reconnection logic
   runApp(const MyApp());
 }
 
@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const MyHomePage(), // Start with MyHomePage
+      home: const MyHomePage(),
     );
   }
 }
@@ -37,12 +37,10 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     controller.initializeBluetooth();
 
-    // Attempt auto-reconnect after a delay
-    Future.delayed(const Duration(seconds: 1), () {
-      controller.startAutoReconnect();
-    });
+    // Attempt auto-reconnect in background too
+    controller.startAutoReconnect();
 
-    // Navigate to DeviceDataPage when connected
+    // Navigate on connection
     ever(controller.isConnected, (connected) {
       if (connected == true) {
         Get.off(() => const DeviceDataPage());
@@ -69,8 +67,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             const SizedBox(height: 10),
-
-            // Scanned Device List
             Expanded(
               child: controller.scanResults.isNotEmpty
                   ? ListView.builder(
@@ -99,8 +95,6 @@ class _MyHomePageState extends State<MyHomePage> {
                           style: TextStyle(fontSize: 16, color: Colors.grey)),
                     ),
             ),
-
-            // Buttons
             const SizedBox(height: 10),
             if (controller.isConnected.value)
               ElevatedButton(

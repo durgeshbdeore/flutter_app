@@ -1,13 +1,16 @@
 package com.example.flutter_bluetooth;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodCall;
@@ -53,24 +56,20 @@ public class MainActivity extends FlutterActivity {
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
-            .setMethodCallHandler(
-                (call, result) -> {
-                    if (call.method.equals("startBleService")) {
-                        String deviceAddress = call.argument("DEVICE_ADDRESS");
-                        if (deviceAddress != null) {
-                            startBleService(deviceAddress);
-                            result.success("Service started");
-                        } else {
-                            result.error("INVALID_ARGUMENT", "Device address is required", null);
+                .setMethodCallHandler(
+                        (call, result) -> {
+                            if (call.method.equals("startForegroundService")) {
+                                Context context = getApplicationContext(); // This line works now
+                                Intent serviceIntent = new Intent(context, BLEForegroundService.class);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    context.startForegroundService(serviceIntent);
+                                } else {
+                                    context.startService(serviceIntent);
+                                }
+                                result.success("Service Started");
+                            }
                         }
-                    } else if (call.method.equals("stopBleService")) {
-                        stopBleService();
-                        result.success("Service stopped");
-                    } else {
-                        result.notImplemented();
-                    }
-                }
-            );
+                );
     }
 
     private void startBleService(String deviceAddress) {
