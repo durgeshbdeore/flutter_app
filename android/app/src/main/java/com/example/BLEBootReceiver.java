@@ -1,34 +1,23 @@
-package com.example.flutter_bluetooth;
+package com.example.flutter_app;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.util.Log;
 
 public class BLEBootReceiver extends BroadcastReceiver {
-    private static final String TAG = "BLEBootReceiver";
-    private static final String PREFS_NAME = "BLEPrefs";
-    private static final String KEY_DEVICE_ADDRESS = "DEVICE_ADDRESS";
+  private static final String TAG = "BLEBootReceiver";
 
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "Boot completed event received");
+  @Override
+  public void onReceive(Context context, Intent intent) {
+    String action = intent.getAction();
+    Log.d(TAG, "Received action: " + action);
 
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String deviceAddress = prefs.getString(KEY_DEVICE_ADDRESS, null);
-
-        if (deviceAddress != null) {
-            Log.d(TAG, "Restarting BLEForegroundService with device: " + deviceAddress);
-            Intent serviceIntent = new Intent(context, BLEForegroundService.class);
-            serviceIntent.putExtra("DEVICE_ADDRESS", deviceAddress);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent);
-            } else {
-                context.startService(serviceIntent);
-            }
-        } else {
-            Log.w(TAG, "No device address found. Service not restarted.");
-        }
+    if (Intent.ACTION_BOOT_COMPLETED.equals(action) || Intent.ACTION_REBOOT.equals(action) ||
+        Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+      Log.d(TAG, "Starting service after boot");
+      Intent serviceIntent = new Intent(context, BLEForegroundService.class);
+      context.startForegroundService(serviceIntent);
     }
+  }
 }

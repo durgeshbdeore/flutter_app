@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'ble_controller.dart';
 import 'device_data_page.dart';
-import 'background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeService(); // Start background BLE & reconnection logic
   runApp(const MyApp());
 }
 
@@ -37,15 +35,19 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     controller.initializeBluetooth();
 
-    // Attempt auto-reconnect in background too
-    controller.startAutoReconnect();
-
-    // Navigate on connection
+    // Navigate to DeviceDataPage on connection
     ever(controller.isConnected, (connected) {
       if (connected == true) {
         Get.off(() => const DeviceDataPage());
       }
     });
+
+    // Start scanning if no device is connected
+    if (!controller.isConnected.value) {
+      Future.delayed(Duration.zero, () {
+        controller.scanDevices();
+      });
+    }
   }
 
   @override
@@ -90,9 +92,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                     )
                   : const Center(
-                      child: Text("No devices found.\nPress SCAN to start scanning.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      child: Text(
+                        "No devices found.\nPress SCAN to start scanning.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
                     ),
             ),
             const SizedBox(height: 10),
@@ -109,7 +113,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: controller.forgetDevice,
+              onPressed: controller.forgetDevice, // Now defined
               child: const Text("FORGET DEVICE"),
             ),
             const SizedBox(height: 20),
